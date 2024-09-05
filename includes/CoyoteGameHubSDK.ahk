@@ -1,6 +1,14 @@
 global CoyoteControllerURL
 global CoyoteTargetClientId
 
+HttpGet(url) {
+    ; https://learn.microsoft.com/en-us/windows/win32/winhttp/winhttprequest
+    web := ComObject('WinHttp.WinHttpRequest.5.1')
+    web.Open("GET", url, false)
+    web.Send()
+    return web.ResponseText
+}
+
 HttpPost(url, body) {
     ; https://learn.microsoft.com/en-us/windows/win32/winhttp/winhttprequest
     web := ComObject('WinHttp.WinHttpRequest.5.1')
@@ -55,4 +63,36 @@ CoyoteFire(strength, time)
     timeMs := time * 1000
     url := CoyoteControllerURL . "/api/game/" . CoyoteTargetClientId . "/fire"
     return HttpPost(url, "strength=" . strength . "&time=" . timeMs)
+}
+
+CoyoteGetStrength()
+{
+    global CoyoteControllerURL, CoyoteTargetClientId
+
+    url := CoyoteControllerURL . "/api/game/" . CoyoteTargetClientId . "/strength_config"
+    return HttpGet(url)
+}
+
+CoyoteGetPulseList()
+{
+    global CoyoteControllerURL, CoyoteTargetClientId
+
+    url := CoyoteControllerURL . "/api/game/" . CoyoteTargetClientId . "/pulse_list"
+    return HttpGet(url)
+}
+
+CoyoteGetPulseId()
+{
+    global CoyoteControllerURL, CoyoteTargetClientId
+
+    url := CoyoteControllerURL . "/api/game/" . CoyoteTargetClientId . "/pulse_id"
+    return HttpGet(url)
+}
+
+CoyoteSetPulseId(pulseId)
+{
+    global CoyoteControllerURL, CoyoteTargetClientId
+
+    url := CoyoteControllerURL . "/api/game/" . CoyoteTargetClientId . "/pulse_id"
+    return HttpPost(url, "pulseId=" . pulseId)
 }

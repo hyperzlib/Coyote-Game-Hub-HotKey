@@ -8,6 +8,26 @@ KeyCodeToKeyName(keyCode)
     return keyCode
 }
 
+global PulseList := []
+
+RefreshPulseList()
+{
+    global PulseList
+
+    response := CoyoteGetPulseList()
+    data := Jxon_Load(&response)
+    if (data = "")
+    {
+        MsgBox("获取脉冲列表失败")
+    }
+    else if (data["status"] != 1)
+    {
+        MsgBox("获取脉冲列表失败: " . data["message"])
+    }
+
+    PulseList := data["pulseList"]
+}
+
 ; =============================================================================
 ; 快捷键设置窗口
 ; =============================================================================
@@ -31,7 +51,7 @@ KeyConfigListView.ModifyCol(3, 100)
 ; 刷新快捷键列表
 UpdateKeyConfigListView()
 {
-    global KeyConfigListView, HotKeyList, ActionLabelDefine
+    global KeyConfigListView, HotKeyList, ActionLabelDefine, PulseList
 
     if (KeyConfigListView = "")
     {
@@ -66,6 +86,18 @@ UpdateKeyConfigListView()
         {
             params := StrSplit(param, ",")
             param := params[1] . ", " . params[2] . "s"
+        }
+        else if (action = "setPulse")
+        {
+            loop PulseList.Length
+            {
+                pulse := PulseList[A_Index]
+                if (pulse["id"] = param)
+                {
+                    param := pulse["name"]
+                    break
+                }
+            }
         }
 
         KeyConfigListView.Add("", keyCode, actionLabel, param)
@@ -116,41 +148,41 @@ OnOpenKeyEditMenu(index, parentWindow := "")
     form.Add("Text", "w60", "功能:")
     form.Add("Text", "w60", "强度:")
     form.Add("Text", "w60", "时间 (秒):")
+    form.Add("Text", "w60", "波形:")
 
+    ; 转换action列表为下拉框数据
     actionName := hotKeyConfig[2]
     actionList := []
     actionLabelList := []
-    actionSelected := 0
+    actionSelected := 1
 
     for key, value in ActionLabelDefine
     {
         actionList.Push(key)
         actionLabelList.Push(value)
+    }
 
-        if (key = actionName)
-        {
-            actionSelected := actionList.Length
-        }
+    if (actionName != "")
+    {
+        actionSelected := ArraySearch(actionList, actionName, 1)
+    }
+
+    ; 转换脉冲列表为下拉框数据
+    pulseIdList := []
+    pulseLabelList := []
+
+    loop PulseList.Length
+    {
+        pulse := PulseList[A_Index]
+        pulseIdList.Push(pulse["id"])
+        pulseLabelList.Push(pulse["name"])
     }
 
     inputKeyCode := form.Add("Hotkey", "vKeyCode w100 ym", hotKeyConfig[1])
     dropdownAction := form.Add("DropDownList", "vAction w100 Choose" . actionSelected, actionLabelList)
     inputStrength := form.Add("Edit", "vStrength w100 Number", "")
     inputTime := form.Add("Edit", "vTime w100 Disabled", "")
-
-    ; 如果是开火功能，显示时间输入框
-    if (actionName = "fire")
-    {
-        params := StrSplit(hotKeyConfig[3], ",")
-        inputStrength.Text := params[1]
-        inputTime.Text := params[2]
-
-        inputTime.Enabled := true
-    }
-    else
-    {
-        inputStrength.Text := hotKeyConfig[3]
-    }
+    dropdownPulse := form.Add("DropDownList", "vPulseId w100", pulseLabelList)
 
     ; 在功能选择变化时，判断是否显示时间输入框
     OnActionChange(*)
@@ -159,14 +191,49 @@ OnOpenKeyEditMenu(index, parentWindow := "")
 
         if (action = "fire")
         {
+            inputStrength.Enabled := false
             inputTime.Enabled := true
+            dropdownPulse.Enabled := true
+        }
+        else if (action = "setPulse")
+        {
+            inputStrength.Enabled := false
+            inputTime.Enabled := false
+            dropdownPulse.Enabled := true
         }
         else
         {
+            inputStrength.Enabled := true
             inputTime.Enabled := false
+            dropdownPulse.Enabled := false
         }
     }
+    OnActionChange()
     dropdownAction.OnEvent("Change", OnActionChange)
+
+    ; 如果是开火功能，显示时间输入框
+    if (actionName = "fire")
+    {
+        params := StrSplit(hotKeyConfig[3], ",")
+        inputStrength.Text := params[1]
+        inputTime.Text := params[2]
+
+        if (params.Length >= 3) ; 指定波形
+        {
+            selectedPulse := ArraySearch(pulseIdList, params[3], 1)
+            dropdownPulse.Choose(selectedPulse)
+        }
+    }
+    ; 如果是设置波形功能，显示波形选择框
+    else if (actionName = "setPulse")
+    {
+        selectedPulse := ArraySearch(pulseIdList, hotKeyConfig[3], 1)
+        dropdownPulse.Choose(selectedPulse)
+    }
+    else
+    {
+        inputStrength.Text := hotKeyConfig[3]
+    }
 
     OnSaveKeyConfig(*)
     {
@@ -175,13 +242,9 @@ OnOpenKeyEditMenu(index, parentWindow := "")
             MsgBox("请输入快捷键")
             return
         }
-        if (inputStrength.Value = "")
-        {
-            MsgBox("请输入强度")
-            return
-        }
 
         actionIndex := dropdownAction.Value
+        pulseIndex := dropdownPulse.Value
 
         if (parentWindow != "")
         {
@@ -204,6 +267,12 @@ OnOpenKeyEditMenu(index, parentWindow := "")
             return
         }
 
+        if (action != "fire" and action != "setPulse" and inputStrength.Value = "")
+        {
+            MsgBox("请输入强度")
+            return
+        }
+
         if (action = "fire")
         {
             if (time = "")
@@ -211,6 +280,11 @@ OnOpenKeyEditMenu(index, parentWindow := "")
                 time := 5 ; 默认 5 秒
             }
             param := strength . "," . time
+        }
+        else if (action = "setPulse")
+        {
+            pulseId := pulseIdList[pulseIndex]
+            param := pulseId
         }
         else
         {
@@ -296,6 +370,9 @@ OnOpenKeyConfigMenu(*)
 {
     ; 打开窗口时取消快捷键绑定，防止无法输入快捷键
     UnregisterHotKeys()
+
+    ; 刷新波形列表
+    RefreshPulseList()
 
     UpdateKeyConfigListView()
 

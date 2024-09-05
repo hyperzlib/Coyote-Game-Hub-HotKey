@@ -4,6 +4,8 @@ Persistent
 
 Tray := A_TrayMenu ; For convenience.
 
+#Include "includes\Utils.ahk"
+#Include "includes\JXON.ahk"
 #Include "includes\GuiButtonIcon.ahk"
 #Include "includes\CoyoteGameHubSDK.ahk"
 
@@ -27,6 +29,7 @@ ActionLabelDefine["setRandomStrength"] := "设置随机强度"
 ActionLabelDefine["addRandomStrength"] := "增加随机强度"
 ActionLabelDefine["subRandomStrength"] := "减少随机强度"
 ActionLabelDefine["fire"] := "一键开火"
+ActionLabelDefine["setPulse"] := "设置波形"
 
 OnPressHotKeyFactory(param)
 {
@@ -63,6 +66,10 @@ OnPressHotKeyFactory(param)
         {
             values := StrSplit(value, ",")
             return CoyoteFire(values[1], values[2])
+        }
+        else if (action = "setPulse")
+        {
+            return CoyoteSetPulseId(value)
         }
     }
 
@@ -156,7 +163,10 @@ SaveSettingFile()
 
     FilePath := A_ScriptDir . "\config.ini"
     ; 删除配置文件
-    FileDelete(FilePath)
+    if (FileExist(FilePath))
+    {
+        FileDelete(FilePath)
+    }
 
     IniWrite(CoyoteControllerURL, FilePath, "CoyoteGameHubHotKey", "ControllerUrl")
     IniWrite(CoyoteTargetClientId, FilePath, "CoyoteGameHubHotKey", "ClientId")
