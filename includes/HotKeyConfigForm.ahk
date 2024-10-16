@@ -191,9 +191,9 @@ OnOpenKeyEditMenu(index, parentWindow := "")
 
         if (action = "fire")
         {
-            inputStrength.Enabled := false
+            inputStrength.Enabled := true
             inputTime.Enabled := true
-            dropdownPulse.Enabled := true
+            dropdownPulse.Enabled := false
         }
         else if (action = "setPulse")
         {
@@ -380,3 +380,5 @@ OnOpenKeyConfigMenu(*)
 }
 
 Tray.Insert("1&", "快捷键设置", OnOpenKeyConfigMenu, )
+
+Tray.Default := "快捷键设置"
